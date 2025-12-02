@@ -2,17 +2,26 @@
 #Shotner Settings Command - Only for Owner and Admins
 
 from bot import Bot
-from config import ADMINS, VERIFY_EXPIRE, VERIFY_EXPIRE_1, VERIFY_EXPIRE_2, VERIFY_GAP_TIME, VERIFY_IMAGE
+from config import ADMINS
 from pyrogram import filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 import os
+import config as config_module
+
+# Track which user is editing which setting
+editing_context = {}
 
 
-# Shotner Settings Command - Main Entry Point
 @Bot.on_message(filters.private & filters.user(ADMINS) & filters.command('shotner'))
 async def shotner_settings(client: Bot, message: Message):
     """Display settings menu for owner/admins"""
     
+    verify_expire = getattr(config_module, 'VERIFY_EXPIRE', 300)
+    verify_expire_1 = getattr(config_module, 'VERIFY_EXPIRE_1', 300)
+    verify_expire_2 = getattr(config_module, 'VERIFY_EXPIRE_2', 300)
+    verify_gap_time = getattr(config_module, 'VERIFY_GAP_TIME', 60)
+    verify_image = getattr(config_module, 'VERIFY_IMAGE', 'Not set')
+    
     settings_keyboard = InlineKeyboardMarkup(
         [
             [InlineKeyboardButton("⏱️ Verify Expire", callback_data="settings_verify_expire")],
@@ -21,112 +30,109 @@ async def shotner_settings(client: Bot, message: Message):
         ]
     )
     
-    settings_text = """
+    settings_text = f"""
 <b>⚙️ SHOTNER SETTINGS</b>
 
 Configure bot verification settings:
 
 <b>Current Settings:</b>
-• <b>Verify Expire:</b> {}, {}, {} (seconds)
-• <b>Verify Gap Time:</b> {} (seconds)
-• <b>Verify Image:</b> Set
+• <b>Verify Expire:</b> {verify_expire}, {verify_expire_1}, {verify_expire_2} (seconds)
+• <b>Verify Gap Time:</b> {verify_gap_time} (seconds)
+• <b>Verify Image:</b> {'Set' if verify_image and verify_image != 'Not set' else 'Not set'}
 
-Choose an option to modify:
-""".format(VERIFY_EXPIRE, VERIFY_EXPIRE_1, VERIFY_EXPIRE_2, VERIFY_GAP_TIME)
+<b>Select an option to modify:</b>
+"""
     
-    await message.reply(settings_text, reply_markup=settings_keyboard)
+    await message.reply_text(settings_text, reply_markup=settings_keyboard)
 
 
-# Handle Verify Expire Selection
 @Bot.on_callback_query(filters.user(ADMINS) & filters.regex("^settings_verify_expire$"))
-async def verify_expire_menu(client: Bot, query: CallbackQuery):
+async def cb_verify_expire(client: Bot, query: CallbackQuery):
     """Show verify expire options"""
+    verify_expire = getattr(config_module, 'VERIFY_EXPIRE', 300)
+    verify_expire_1 = getattr(config_module, 'VERIFY_EXPIRE_1', 300)
+    verify_expire_2 = getattr(config_module, 'VERIFY_EXPIRE_2', 300)
     
-    expire_keyboard = InlineKeyboardMarkup(
+    keyboard = InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton(f"VERIFY_EXPIRE ({VERIFY_EXPIRE}s)", callback_data="set_verify_expire_0")],
-            [InlineKeyboardButton(f"VERIFY_EXPIRE_1 ({VERIFY_EXPIRE_1}s)", callback_data="set_verify_expire_1")],
-            [InlineKeyboardButton(f"VERIFY_EXPIRE_2 ({VERIFY_EXPIRE_2}s)", callback_data="set_verify_expire_2")],
+            [InlineKeyboardButton(f"VERIFY_EXPIRE: {verify_expire}s", callback_data="set_verify_expire_0")],
+            [InlineKeyboardButton(f"VERIFY_EXPIRE_1: {verify_expire_1}s", callback_data="set_verify_expire_1")],
+            [InlineKeyboardButton(f"VERIFY_EXPIRE_2: {verify_expire_2}s", callback_data="set_verify_expire_2")],
             [InlineKeyboardButton("⬅️ Back", callback_data="back_to_settings")]
         ]
     )
     
-    expire_text = """
-<b>⏱️ VERIFY EXPIRE SETTINGS</b>
-
-Select which verification expire time to modify:
-
-<b>Current Values:</b>
-• <b>VERIFY_EXPIRE:</b> {} seconds
-• <b>VERIFY_EXPIRE_1:</b> {} seconds
-• <b>VERIFY_EXPIRE_2:</b> {} seconds
-
-Send a number (in seconds) to update the selected option.
-""".format(VERIFY_EXPIRE, VERIFY_EXPIRE_1, VERIFY_EXPIRE_2)
-    
-    await query.message.edit_text(expire_text, reply_markup=expire_keyboard)
+    await query.message.edit_text(
+        "<b>⏱️ VERIFY EXPIRE SETTINGS</b>\n\nSelect which expire time to modify:",
+        reply_markup=keyboard
+    )
     await query.answer()
 
 
-# Handle Verify Gap Time Selection
+@Bot.on_callback_query(filters.user(ADMINS) & filters.regex("^set_verify_expire_"))
+async def cb_set_verify_expire(client: Bot, query: CallbackQuery):
+    """Handle verify expire selection"""
+    expire_index = query.data.split("_")[-1]
+    
+    user_id = query.from_user.id
+    editing_context[user_id] = {"type": "verify_expire", "expire_index": expire_index}
+    
+    expire_names = ["VERIFY_EXPIRE", "VERIFY_EXPIRE_1", "VERIFY_EXPIRE_2"]
+    current_value = getattr(config_module, expire_names[int(expire_index)], 300)
+    
+    await query.message.edit_text(
+        f"<b>Updating {expire_names[int(expire_index)]}</b>\n\n"
+        f"Current value: <code>{current_value}</code> seconds\n\n"
+        f"Send the new value (in seconds):"
+    )
+    await query.answer()
+
+
 @Bot.on_callback_query(filters.user(ADMINS) & filters.regex("^settings_verify_gap_time$"))
-async def verify_gap_time_menu(client: Bot, query: CallbackQuery):
-    """Show verify gap time option"""
+async def cb_verify_gap_time(client: Bot, query: CallbackQuery):
+    """Handle verify gap time setting"""
+    verify_gap_time = getattr(config_module, 'VERIFY_GAP_TIME', 60)
     
-    gap_keyboard = InlineKeyboardMarkup(
-        [
-            [InlineKeyboardButton(f"VERIFY_GAP_TIME ({VERIFY_GAP_TIME}s)", callback_data="set_verify_gap_time")],
-            [InlineKeyboardButton("⬅️ Back", callback_data="back_to_settings")]
-        ]
+    user_id = query.from_user.id
+    editing_context[user_id] = {"type": "verify_gap_time"}
+    
+    await query.message.edit_text(
+        f"<b>⏳ VERIFY GAP TIME</b>\n\n"
+        f"Current value: <code>{verify_gap_time}</code> seconds\n\n"
+        f"Send the new value (in seconds):"
     )
-    
-    gap_text = """
-<b>⏳ VERIFY GAP TIME SETTINGS</b>
-
-Gap time between first and second verification:
-
-<b>Current Value:</b>
-• <b>VERIFY_GAP_TIME:</b> {} seconds
-
-Send a number (in seconds) to update this value.
-""".format(VERIFY_GAP_TIME)
-    
-    await query.message.edit_text(gap_text, reply_markup=gap_keyboard)
     await query.answer()
 
 
-# Handle Verify Image Selection
 @Bot.on_callback_query(filters.user(ADMINS) & filters.regex("^settings_verify_image$"))
-async def verify_image_menu(client: Bot, query: CallbackQuery):
-    """Show verify image option"""
+async def cb_verify_image(client: Bot, query: CallbackQuery):
+    """Handle verify image setting"""
+    verify_image = getattr(config_module, 'VERIFY_IMAGE', 'Not set')
     
-    image_keyboard = InlineKeyboardMarkup(
-        [
-            [InlineKeyboardButton(f"VERIFY_IMAGE", callback_data="set_verify_image")],
-            [InlineKeyboardButton("⬅️ Back", callback_data="back_to_settings")]
-        ]
+    user_id = query.from_user.id
+    editing_context[user_id] = {"type": "verify_image"}
+    
+    current_display = verify_image if verify_image else "Not set"
+    await query.message.edit_text(
+        f"<b>🖼️ VERIFY IMAGE</b>\n\n"
+        f"Current value: <code>{current_display}</code>\n\n"
+        f"Send the new image URL:"
     )
-    
-    image_text = """
-<b>🖼️ VERIFY IMAGE SETTINGS</b>
-
-Verification image URL:
-
-<b>Current Value:</b>
-• <b>VERIFY_IMAGE:</b> {verify_image}
-
-Send a URL to update the image link.
-Example: https://example.com/image.jpg
-""".format(verify_image=VERIFY_IMAGE)
-    
-    await query.message.edit_text(image_text, reply_markup=image_keyboard)
     await query.answer()
 
 
-# Back to Settings Button
 @Bot.on_callback_query(filters.user(ADMINS) & filters.regex("^back_to_settings$"))
-async def back_to_settings(client: Bot, query: CallbackQuery):
+async def cb_back_to_settings(client: Bot, query: CallbackQuery):
     """Go back to main settings menu"""
+    user_id = query.from_user.id
+    if user_id in editing_context:
+        del editing_context[user_id]
+    
+    verify_expire = getattr(config_module, 'VERIFY_EXPIRE', 300)
+    verify_expire_1 = getattr(config_module, 'VERIFY_EXPIRE_1', 300)
+    verify_expire_2 = getattr(config_module, 'VERIFY_EXPIRE_2', 300)
+    verify_gap_time = getattr(config_module, 'VERIFY_GAP_TIME', 60)
+    verify_image = getattr(config_module, 'VERIFY_IMAGE', 'Not set')
     
     settings_keyboard = InlineKeyboardMarkup(
         [
@@ -136,128 +142,29 @@ async def back_to_settings(client: Bot, query: CallbackQuery):
         ]
     )
     
-    settings_text = """
+    settings_text = f"""
 <b>⚙️ SHOTNER SETTINGS</b>
 
 Configure bot verification settings:
 
 <b>Current Settings:</b>
-• <b>Verify Expire:</b> {}, {}, {} (seconds)
-• <b>Verify Gap Time:</b> {} (seconds)
-• <b>Verify Image:</b> Set
+• <b>Verify Expire:</b> {verify_expire}, {verify_expire_1}, {verify_expire_2} (seconds)
+• <b>Verify Gap Time:</b> {verify_gap_time} (seconds)
+• <b>Verify Image:</b> {'Set' if verify_image and verify_image != 'Not set' else 'Not set'}
 
-Choose an option to modify:
-""".format(VERIFY_EXPIRE, VERIFY_EXPIRE_1, VERIFY_EXPIRE_2, VERIFY_GAP_TIME)
+<b>Select an option to modify:</b>
+"""
     
     await query.message.edit_text(settings_text, reply_markup=settings_keyboard)
     await query.answer()
 
 
-# Dictionary to track which setting each user is editing
-editing_context = {}
-
-
-# Handle Verify Expire Selection
-@Bot.on_callback_query(filters.user(ADMINS) & filters.regex("^set_verify_expire_"))
-async def select_verify_expire(client: Bot, query: CallbackQuery):
-    """User selected which expire time to edit"""
-    
-    expire_type = query.data.split("_")[-1]  # 0, 1, or 2
-    
-    # Store in context which setting user is editing
-    editing_context[query.from_user.id] = {
-        "type": "verify_expire",
-        "expire_type": expire_type
-    }
-    
-    expire_names = ["VERIFY_EXPIRE", "VERIFY_EXPIRE_1", "VERIFY_EXPIRE_2"]
-    
-    ask_text = f"""
-<b>⏱️ UPDATE {expire_names[int(expire_type)]}</b>
-
-Send a number (in seconds) for the new timeout value.
-
-Example: 300 (for 5 minutes)
-"""
-    
-    keyboard = InlineKeyboardMarkup(
-        [[InlineKeyboardButton("❌ Cancel", callback_data="cancel_edit")]]
-    )
-    
-    await query.message.edit_text(ask_text, reply_markup=keyboard)
-    await query.answer()
-
-
-# Handle Verify Gap Time Selection
-@Bot.on_callback_query(filters.user(ADMINS) & filters.regex("^set_verify_gap_time$"))
-async def select_verify_gap_time(client: Bot, query: CallbackQuery):
-    """User selected gap time to edit"""
-    
-    editing_context[query.from_user.id] = {
-        "type": "verify_gap_time"
-    }
-    
-    ask_text = """
-<b>⏳ UPDATE VERIFY_GAP_TIME</b>
-
-Send a number (in seconds) for the gap time between first and second verification.
-
-Example: 60 (for 1 minute)
-"""
-    
-    keyboard = InlineKeyboardMarkup(
-        [[InlineKeyboardButton("❌ Cancel", callback_data="cancel_edit")]]
-    )
-    
-    await query.message.edit_text(ask_text, reply_markup=keyboard)
-    await query.answer()
-
-
-# Handle Verify Image Selection
-@Bot.on_callback_query(filters.user(ADMINS) & filters.regex("^set_verify_image$"))
-async def select_verify_image(client: Bot, query: CallbackQuery):
-    """User selected image to edit"""
-    
-    editing_context[query.from_user.id] = {
-        "type": "verify_image"
-    }
-    
-    ask_text = """
-<b>🖼️ UPDATE VERIFY_IMAGE</b>
-
-Send an image URL for verification prompt.
-
-Example: https://i.ibb.co/HTMRv8Wh/image.jpg
-"""
-    
-    keyboard = InlineKeyboardMarkup(
-        [[InlineKeyboardButton("❌ Cancel", callback_data="cancel_edit")]]
-    )
-    
-    await query.message.edit_text(ask_text, reply_markup=keyboard)
-    await query.answer()
-
-
-# Cancel Edit
-@Bot.on_callback_query(filters.user(ADMINS) & filters.regex("^cancel_edit$"))
-async def cancel_edit(client: Bot, query: CallbackQuery):
-    """Cancel current edit"""
-    
-    user_id = query.from_user.id
-    if user_id in editing_context:
-        del editing_context[user_id]
-    
-    await query.message.delete()
-    await query.answer("Cancelled!", show_alert=False)
-
-
-@Bot.on_message(filters.private & filters.user(ADMINS) & filters.text)
+@Bot.on_message(filters.private & filters.user(ADMINS) & filters.text & ~filters.command(["start", "batch", "genlink", "users", "broadcast", "stats", "shotner", "id"]))
 async def handle_setting_input(client: Bot, message: Message):
     """Handle text input for settings updates"""
     
     user_id = message.from_user.id
     
-    # Check if user is editing a setting
     if user_id not in editing_context:
         return
     
@@ -267,8 +174,7 @@ async def handle_setting_input(client: Bot, message: Message):
     
     try:
         if setting_type == "verify_expire":
-            # Update environment variable and config
-            expire_type = context["expire_type"]
+            expire_index = int(context["expire_index"])
             value = int(text)
             
             if value < 0:
@@ -276,23 +182,18 @@ async def handle_setting_input(client: Bot, message: Message):
                 return
             
             expire_names = ["VERIFY_EXPIRE", "VERIFY_EXPIRE_1", "VERIFY_EXPIRE_2"]
-            env_var_name = expire_names[int(expire_type)]
+            env_var_name = expire_names[expire_index]
             
-            # Update environment variable
             os.environ[env_var_name] = str(value)
+            setattr(config_module, env_var_name, value)
             
-            # In production, you'd update this in a config file or database
-            # For now, we'll just update the module-level variable
-            import config
-            setattr(config, env_var_name, value)
+            del editing_context[user_id]
             
-            success_msg = f"""
-✅ <b>{env_var_name} Updated!</b>
-
-<b>New Value:</b> {value} seconds
-
-The bot will use this new value for future verifications.
-"""
+            await message.reply(
+                f"✅ <b>{env_var_name} Updated!</b>\n\n"
+                f"<b>New Value:</b> {value} seconds\n\n"
+                f"The bot will use this new value for future verifications."
+            )
             
         elif setting_type == "verify_gap_time":
             value = int(text)
@@ -301,46 +202,34 @@ The bot will use this new value for future verifications.
                 await message.reply("❌ Value must be positive!")
                 return
             
-            os.environ["VERIFY_GAP_TIME"] = str(value)
+            os.environ['VERIFY_GAP_TIME'] = str(value)
+            setattr(config_module, 'VERIFY_GAP_TIME', value)
             
-            import config
-            config.VERIFY_GAP_TIME = value
+            del editing_context[user_id]
             
-            success_msg = f"""
-✅ <b>VERIFY_GAP_TIME Updated!</b>
-
-<b>New Value:</b> {value} seconds
-
-The bot will use this new value for future verifications.
-"""
+            await message.reply(
+                f"✅ <b>VERIFY_GAP_TIME Updated!</b>\n\n"
+                f"<b>New Value:</b> {value} seconds\n\n"
+                f"The bot will use this new value for future verifications."
+            )
             
         elif setting_type == "verify_image":
-            # Validate URL (basic check)
-            if not text.startswith(("http://", "https://")):
-                await message.reply("❌ Invalid URL! Must start with http:// or https://")
+            if not text.startswith(('http://', 'https://')):
+                await message.reply("❌ Invalid URL! Please send a valid image URL starting with http:// or https://")
                 return
             
-            os.environ["VERIFY_IMAGE"] = text
+            os.environ['VERIFY_IMAGE'] = text
+            setattr(config_module, 'VERIFY_IMAGE', text)
             
-            import config
-            config.VERIFY_IMAGE = text
+            del editing_context[user_id]
             
-            success_msg = f"""
-✅ <b>VERIFY_IMAGE Updated!</b>
-
-<b>New URL:</b> {text}
-
-The bot will use this new image for future verification prompts.
-"""
-        
-        # Send success message
-        await message.reply(success_msg)
-        
-        # Clear context
-        del editing_context[user_id]
-        
+            await message.reply(
+                f"✅ <b>VERIFY_IMAGE Updated!</b>\n\n"
+                f"<b>New Value:</b> <code>{text}</code>\n\n"
+                f"The bot will use this new image for future verifications."
+            )
+    
     except ValueError:
-        if setting_type == "verify_image":
-            await message.reply("❌ Invalid URL format!")
-        else:
-            await message.reply("❌ Please send a valid number!")
+        await message.reply("❌ Invalid input! Please send a valid number or URL.")
+    except Exception as e:
+        await message.reply(f"❌ Error updating setting: {str(e)}")
