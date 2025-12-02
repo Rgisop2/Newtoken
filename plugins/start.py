@@ -46,12 +46,13 @@ def is_dual_verification_enabled():
     return bool(SHORTLINK_URL_2 and SHORTLINK_API_2)
 
 
-async def send_verification_message(message, caption_text, verify_image, reply_markup):
-    """Send verification message with or without image"""
+async def send_verification_message(message, caption_text, verify_image, reply_markup, client, user_id):
+    """Send verification message with or without image and store message ID"""
+    sent_msg = None
     if verify_image and isinstance(verify_image, str) and verify_image.strip():
         try:
             print(f"[DEBUG] Attempting to send image: {verify_image}")
-            sent_message = await message.reply_photo(
+            sent_msg = await message.reply_photo(
                 photo=verify_image,
                 caption=caption_text,
                 reply_markup=reply_markup,
@@ -61,39 +62,48 @@ async def send_verification_message(message, caption_text, verify_image, reply_m
         except Exception as e:
             # If image fails, send text only
             print(f"[DEBUG] Failed to send image: {e}")
-            sent_message = await message.reply(caption_text, reply_markup=reply_markup, quote=True)
+            sent_msg = await message.reply(caption_text, reply_markup=reply_markup, quote=True)
     else:
         print(f"[DEBUG] No valid image provided, sending text only. Image value: {verify_image}")
-        sent_message = await message.reply(caption_text, reply_markup=reply_markup, quote=True)
-    return sent_message
-
-async def delete_previous_verification_message(client, user_id, message_id):
-    if message_id:
-        try:
-            await client.delete_messages(chat_id=user_id, message_ids=message_id)
-            print(f"[DEBUG] Deleted previous verification message {message_id} for user {user_id}")
-        except Exception as e:
-            print(f"[DEBUG] Failed to delete previous verification message {message_id} for user {user_id}: {e}")
+        sent_msg = await message.reply(caption_text, reply_markup=reply_markup, quote=True)
+    
+    if sent_msg:
+        verify_status = await get_verify_status(user_id)
+        verify_status['verification_message_id'] = sent_msg.id
+        await update_verify_status(user_id, 
+                                  verify_token=verify_status['verify_token'],
+                                  is_verified=verify_status['is_verified'],
+                                  verified_time=verify_status['verified_time'],
+                                  link=verify_status['link'],
+                                  current_step=verify_status['current_step'],
+                                  verify1_expiry=verify_status['verify1_expiry'],
+                                  verify2_expiry=verify_status['verify2_expiry'],
+                                  gap_expiry=verify_status['gap_expiry'])
+        # Store the verification message ID separately
+        from database.database import user_data
+        await user_data.update_one({'_id': user_id}, 
+                                  {'$set': {'verify_status.verification_message_id': sent_msg.id}})
 
 
 @Bot.on_message(filters.command('start') & filters.private & subscribed)
 async def start_command(client: Client, message: Message):
     id = message.from_user.id
-    
-    # Extract the start payload for the "Done" button
-    start_payload = message.command[1] if len(message.command) > 1 else None
-    done_button_url = f'https://t.me/{client.username}'
-    if start_payload:
-        done_button_url = f'https://t.me/{client.username}?start={start_payload}'
-    owner_id = ADMINS  # Fetch the owner's ID from config
+    owner_id = ADMINS
 
     # Check if the user is the owner
     if id == owner_id:
-        # Owner-specific actions
-        # You can add any additional actions specific to the owner here
         await message.reply("You are the owner! Additional actions can be added here.")
 
     else:
+        verify_status = await get_verify_status(id)
+        prev_msg_id = verify_status.get('verification_message_id', 0)
+        if prev_msg_id > 0:
+            try:
+                await client.delete_messages(chat_id=id, message_ids=prev_msg_id)
+                print(f"[DEBUG] Deleted previous verification message {prev_msg_id} for user {id}")
+            except Exception as e:
+                print(f"[DEBUG] Could not delete previous verification message: {e}")
+
         if not await present_user(id):
             try:
                 await add_user(id)
@@ -110,22 +120,23 @@ async def start_command(client: Client, message: Message):
             verify_status['verify2_expiry'] = 0
         if 'gap_expiry' not in verify_status:
             verify_status['gap_expiry'] = 0
-        if 'last_verification_message_id' not in verify_status:
-            verify_status['last_verification_message_id'] = 0
-        if 'token_created_at' not in verify_status:
-            verify_status['token_created_at'] = 0
+
+        original_start_payload = ""
+        try:
+            if len(message.command) > 1:
+                original_start_payload = message.command[1]
+                # Store it for later use
+                from database.database import user_data
+                await user_data.update_one({'_id': id}, 
+                                          {'$set': {'verify_status.last_entry_link': original_start_payload}})
+        except:
+            pass
 
         now = time.time()
         
-        if "verify_" in message.text and not message.text.startswith('/start get-'):
+        if "verify_" in message.text:
             _, token = message.text.split("_", 1)
-            
-            # Re-fetch verify_status to ensure we have the latest token set by the bot
-            # This is crucial because the token is set in a previous execution of the handler
-            # and the in-memory verify_status might be stale if the user is fast.
-            verify_status = await get_verify_status(id)
-            
-            if verify_status.get('verify_token') != token:
+            if verify_status['verify_token'] != token:
                 return await message.reply("Your token is invalid or Expired. Try again by clicking /start")
             
             step = verify_status['current_step']
@@ -137,12 +148,11 @@ async def start_command(client: Client, message: Message):
                 verify_status['verify1_expiry'] = now + VERIFY_EXPIRE_1
                 verify_status['gap_expiry'] = now + VERIFY_GAP_TIME
                 verify_status['verify_token'] = ""
-                verify_status['token_created_at'] = 0 # Expire token immediately
                 verify_status['verified_time'] = now
                 await update_verify_status(id, is_verified=True, current_step=1, 
                                          verify1_expiry=verify_status['verify1_expiry'],
                                          gap_expiry=verify_status['gap_expiry'],
-                                         verify_token="", token_created_at=0, verified_time=now)
+                                         verify_token="", verified_time=now)
                 await message.reply(f"✅ First verification complete! You now have temporary access.\n\nAccess valid for: {get_exp_time(VERIFY_EXPIRE_1)}", quote=True)
                 return
             
@@ -152,11 +162,10 @@ async def start_command(client: Client, message: Message):
                 verify_status['is_verified'] = True
                 verify_status['verify2_expiry'] = now + VERIFY_EXPIRE_2
                 verify_status['verify_token'] = ""
-                verify_status['token_created_at'] = 0 # Expire token immediately
                 verify_status['verified_time'] = now
                 await update_verify_status(id, is_verified=True, current_step=2,
                                          verify2_expiry=verify_status['verify2_expiry'],
-                                         verify_token="", token_created_at=0, verified_time=now)
+                                         verify_token="", verified_time=now)
                 await message.reply(f"✅ Second verification complete! Full access unlocked.\n\nAccess valid for: {get_exp_time(VERIFY_EXPIRE_2)}", quote=True)
                 return
 
@@ -164,7 +173,6 @@ async def start_command(client: Client, message: Message):
         step = verify_status['current_step']
         
         if step == 2 and verify_status['verify2_expiry'] > 0 and now >= verify_status['verify2_expiry']:
-            # Second verification expired → reset to step 1 and require re-verification
             verify_status['is_verified'] = False
             verify_status['current_step'] = 1
             verify_status['verify2_expiry'] = 0
@@ -173,7 +181,6 @@ async def start_command(client: Client, message: Message):
             step = 1
 
         if step == 1 and verify_status['verify1_expiry'] > 0 and now >= verify_status['verify1_expiry']:
-            # First verification expired → reset everything
             verify_status['is_verified'] = False
             verify_status['current_step'] = 0
             verify_status['verify1_expiry'] = 0
@@ -182,14 +189,12 @@ async def start_command(client: Client, message: Message):
             step = 0
 
         elif len(message.text) > 7:
-            # Refresh current state
             verify_status = await get_verify_status(id)
             now = time.time()
             step = verify_status['current_step']
             access_allowed = False
-            access_type = None  # 'full', 'temporary', or None
+            access_type = None
             
-            # Extract file_id from the base64_string for custom image retrieval
             file_id_for_image = ""
             try:
                 base64_string = message.text.split(" ", 1)[1]
@@ -197,9 +202,7 @@ async def start_command(client: Client, message: Message):
                 argument = _string.split("-")
                 print(f"[DEBUG] Decoded string: {_string}, argument: {argument}")
                 
-                # Construct file_id based on the argument format
                 if len(argument) == 3:
-                    # Batch link format: batch-{encoded_start}-{encoded_end}
                     try:
                         f_msg_id_original = int(int(argument[1]) / abs(client.db_channel.id))
                         s_msg_id_original = int(int(argument[2]) / abs(client.db_channel.id))
@@ -208,7 +211,6 @@ async def start_command(client: Client, message: Message):
                         file_id_for_image = f"batch-{argument[1]}-{argument[2]}"
                     print(f"[DEBUG] Batch link detected, file_id_for_image: {file_id_for_image}")
                 elif len(argument) == 2:
-                    # Single file link format: get-{encoded_msg_id}
                     try:
                         msg_id_original = int(int(argument[1]) / abs(client.db_channel.id))
                         file_id_for_image = f"get-{msg_id_original}"
@@ -220,38 +222,28 @@ async def start_command(client: Client, message: Message):
             except Exception as e:
                 print(f"[DEBUG] Error extracting file_id: {e}")
             
-            # Determine access level based on dual verification state
             if step == 2:
-                # User is at step 2 - check if step 2 hasn't expired
                 if verify_status['verify2_expiry'] > 0 and now < verify_status['verify2_expiry']:
                     access_allowed = True
                     access_type = 'full'
                 else:
-                    # Step 2 expired, need verification again
                     access_type = 'require_step2'
                     
             elif step == 1:
-                # User is at step 1 - check multiple conditions
                 if verify_status['verify1_expiry'] > 0 and now >= verify_status['verify1_expiry']:
-                    # Step 1 expired completely
                     access_type = 'require_step1'
                 elif verify_status['gap_expiry'] > 0 and now < verify_status['gap_expiry']:
-                    # Still in gap period, allow temporary access
                     access_allowed = True
                     access_type = 'temporary'
                 elif is_dual_verification_enabled() and (verify_status['gap_expiry'] == 0 or now >= verify_status['gap_expiry']):
-                    # Gap expired and dual verification is enabled, need step 2
                     access_type = 'require_step2'
                 else:
-                    # Dual verification disabled or gap not set, allow access
                     access_allowed = True
                     access_type = 'full'
                     
             elif step == 0:
-                # Never verified
                 access_type = 'require_step1'
 
-            # Handle access based on access_type
             if not access_allowed and IS_VERIFY and access_type:
                 if access_type == 'require_step1':
                     token = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
@@ -262,21 +254,19 @@ async def start_command(client: Client, message: Message):
                         btn = [
                             [InlineKeyboardButton("Click here", url=link)],
                         ]
+                        
+                        # Add Done button if original payload exists
+                        if original_start_payload:
+                            btn.append([
+                                InlineKeyboardButton("Done ✅", url=f"https://telegram.dog/{client.username}?start={original_start_payload}")
+                            ])
+                        
                         if TUT_VID and isinstance(TUT_VID, str) and TUT_VID.startswith(('http://', 'https://', 'tg://')):
                             btn.append([InlineKeyboardButton('How to use the bot', url=TUT_VID)])
                         
-                        # Add the "Done ✅" button
-                        btn.append([InlineKeyboardButton("Done ✅", url=done_button_url)])
-                        
-                        # Use the extracted file_id_for_image to get custom image
                         verify_image = await get_verify_image(file_id_for_image)
                         caption_text = f"Your token is expired or not verified. Complete verification to access files.\n\nToken Timeout: {get_exp_time(VERIFY_EXPIRE_1)}"
-                        
-                        # Delete previous verification message
-                        await delete_previous_verification_message(client, id, verify_status.get('last_verification_message_id'))
-                        
-                        sent_msg = await send_verification_message(message, caption_text, verify_image, InlineKeyboardMarkup(btn))
-                        await update_verify_status(id, last_verification_message_id=sent_msg.id)
+                        await send_verification_message(message, caption_text, verify_image, InlineKeyboardMarkup(btn), client, id)
                     else:
                         await message.reply(f"Your token is expired or not verified. Complete verification to access files.\n\nToken Timeout: {get_exp_time(VERIFY_EXPIRE_1)}\n\nError: Could not generate verification link. Please try again.", quote=True)
                     return
@@ -290,26 +280,23 @@ async def start_command(client: Client, message: Message):
                         btn = [
                             [InlineKeyboardButton("Click here", url=link)],
                         ]
+                        
+                        # Add Done button if original payload exists
+                        if original_start_payload:
+                            btn.append([
+                                InlineKeyboardButton("Done ✅", url=f"https://telegram.dog/{client.username}?start={original_start_payload}")
+                            ])
+                        
                         if TUT_VID and isinstance(TUT_VID, str) and TUT_VID.startswith(('http://', 'https://', 'tg://')):
                             btn.append([InlineKeyboardButton('How to use the bot', url=TUT_VID)])
                         
-                        # Add the "Done ✅" button
-                        btn.append([InlineKeyboardButton("Done ✅", url=done_button_url)])
-                        
-                        # Use the extracted file_id_for_image to get custom image
                         verify_image = await get_verify_image(file_id_for_image)
                         caption_text = f"Complete second verification to continue accessing files.\n\nToken Timeout: {get_exp_time(VERIFY_EXPIRE_2)}"
-                        
-                        # Delete previous verification message
-                        await delete_previous_verification_message(client, id, verify_status.get('last_verification_message_id'))
-                        
-                        sent_msg = await send_verification_message(message, caption_text, verify_image, InlineKeyboardMarkup(btn))
-                        await update_verify_status(id, last_verification_message_id=sent_msg.id)
+                        await send_verification_message(message, caption_text, verify_image, InlineKeyboardMarkup(btn), client, id)
                     else:
                         await message.reply(f"Complete second verification to continue accessing files.\n\nToken Timeout: {get_exp_time(VERIFY_EXPIRE_2)}\n\nError: Could not generate verification link. Please try again.", quote=True)
                     return
 
-            # If access is allowed, proceed to decode and send files
             if access_allowed or not IS_VERIFY:
                 try:
                     base64_string = message.text.split(" ", 1)[1]
@@ -389,4 +376,133 @@ async def start_command(client: Client, message: Message):
                 text=START_MSG.format(
                     first=message.from_user.first_name,
                     last=message.from_user.last_name,
-                    username=None if not message.from_user.username else '@' + message.from_user.usern
+                    username=None if not message.from_user.username else '@' + message.from_user.username,
+                    mention=message.from_user.mention,
+                    id=message.from_user.id
+                ),
+                reply_markup=reply_markup,
+                disable_web_page_preview=True,
+                quote=True
+            )
+
+        else:
+            verify_status = await get_verify_status(id)
+            if IS_VERIFY and not verify_status['is_verified']:
+                token = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
+                await update_verify_status(id, verify_token=token, link="")
+                link = await get_shortlink(SHORTLINK_URL_1, SHORTLINK_API_1, f'https://telegram.dog/{client.username}?start=verify_{token}')
+                
+                if link and isinstance(link, str) and link.startswith(('http://', 'https://', 'tg://')):
+                    btn = [
+                        [InlineKeyboardButton("Click here", url=link)],
+                    ]
+                    
+                    # Add Done button if original payload exists
+                    if original_start_payload:
+                        btn.append([
+                            InlineKeyboardButton("Done ✅", url=f"https://telegram.dog/{client.username}?start={original_start_payload}")
+                        ])
+                    
+                    if TUT_VID and isinstance(TUT_VID, str) and TUT_VID.startswith(('http://', 'https://', 'tg://')):
+                        btn.append([InlineKeyboardButton('How to use the bot', url=TUT_VID)])
+                    
+                    file_id = verify_status.get('link', '')
+                    verify_image = await get_verify_image(file_id)
+                    caption_text = f"Your Ads token is expired, refresh your token and try again.\n\nToken Timeout: {get_exp_time(VERIFY_EXPIRE_1)}\n\nWhat is the token?\n\nThis is an ads token. If you pass 1 ad, you can use the bot for {get_exp_time(VERIFY_EXPIRE_1)} after passing the ad."
+                    await send_verification_message(message, caption_text, verify_image, InlineKeyboardMarkup(btn), client, id)
+                else:
+                    await message.reply(f"Your Ads token is expired, refresh your token and try again.\n\nToken Timeout: {get_exp_time(VERIFY_EXPIRE_1)}\n\nWhat is the token?\n\nThis is an ads token. If you pass 1 ad, you can use the bot for {get_exp_time(VERIFY_EXPIRE_1)} after passing the ad.\n\nError: Could not generate verification link. Please try again.", quote=True)
+
+
+WAIT_MSG = "<b>ᴡᴏʀᴋɪɴɢ....</b>"
+
+REPLY_ERROR = "<code>Use this command as a reply to any telegram message without any spaces.</code>"
+
+
+@Bot.on_message(filters.command('start') & filters.private)
+async def not_joined(client: Client, message: Message):
+    buttons = [
+        [
+            InlineKeyboardButton(text="• ᴊᴏɪɴ ᴄʜᴀɴɴᴇʟ", url=client.invitelink2),
+            InlineKeyboardButton(text="ᴊᴏɪɴ ᴄʜᴀɴɴᴇʟ •", url=client.invitelink3),
+        ],
+        [
+            InlineKeyboardButton(text="• ᴊᴏɪɴ ᴄʜᴀɴɴᴇʟ •", url=client.invitelink),
+        ]
+    ]
+    try:
+        buttons.append(
+            [
+                InlineKeyboardButton(
+                    text = '• ɴᴏᴡ ᴄʟɪᴄᴋ ʜᴇʀᴇ •',
+                    url = f"https://t.me/{client.username}?start={message.command[1]}"
+                )
+            ]
+        )
+    except IndexError:
+        pass
+
+    await message.reply(
+        text = FORCE_MSG.format(
+                first = message.from_user.first_name,
+                last = message.from_user.last_name,
+                username = None if not message.from_user.username else '@' + message.from_user.username,
+                mention = message.from_user.mention,
+                id = message.from_user.id
+            ),
+        reply_markup = InlineKeyboardMarkup(buttons),
+        quote = True,
+        disable_web_page_preview = True
+    )
+
+@Bot.on_message(filters.command('users') & filters.private & filters.user(ADMINS))
+async def get_users(client: Bot, message: Message):
+    msg = await client.send_message(chat_id=message.chat.id, text=WAIT_MSG)
+    users = await full_userbase()
+    await msg.edit(f"{len(users)} ᴜꜱᴇʀꜱ ᴀʀᴇ ᴜꜱɪɴɢ ᴛʜɪꜱ ʙᴏᴛ")
+
+@Bot.on_message(filters.private & filters.command('broadcast') & filters.user(ADMINS))
+async def send_text(client: Bot, message: Message):
+    if message.reply_to_message:
+        query = await full_userbase()
+        broadcast_msg = message.reply_to_message
+        total = 0
+        successful = 0
+        blocked = 0
+        deleted = 0
+        unsuccessful = 0
+        
+        pls_wait = await message.reply("<i>ʙʀᴏᴀᴅᴄᴀꜱᴛ ᴘʀᴏᴄᴇꜱꜱɪɴɢ ᴛɪʟʟ ᴡᴀɪᴛ ʙʀᴏᴏ... </i>")
+        for chat_id in query:
+            try:
+                await broadcast_msg.copy(chat_id)
+                successful += 1
+            except FloodWait as e:
+                await asyncio.sleep(e.x)
+                await broadcast_msg.copy(chat_id)
+                successful += 1
+            except UserIsBlocked:
+                await del_user(chat_id)
+                blocked += 1
+            except InputUserDeactivated:
+                await del_user(chat_id)
+                deleted += 1
+            except Exception as e:
+                unsuccessful += 1
+                logging.error(f"Broadcast Error: {e}")
+            total += 1
+        
+        status = f"""<b><u>ʙʀᴏᴀᴅᴄᴀꜱᴛ ᴄᴏᴍᴘʟᴇᴛᴇᴅ ᴍʏ sᴇɴᴘᴀɪ!!</u>
+
+ᴛᴏᴛᴀʟ ᴜꜱᴇʀꜱ: <code>{total}</code>
+ꜱᴜᴄᴄᴇꜱꜱꜰᴜʟ: <code>{successful}</code>
+ʙʟᴏᴄᴋᴇᴅ ᴜꜱᴇʀꜱ: <code>{blocked}</code>
+ᴅᴇʟᴇᴛᴇᴅ ᴀᴄᴄᴏᴜɴᴛꜱ: <code>{deleted}</code>
+ᴜɴꜱᴜᴄᴄᴇꜱꜱꜰᴜʟ: <code>{unsuccessful}</code></b></b>"""
+        
+        return await pls_wait.edit(status)
+
+    else:
+        msg = await message.reply(REPLY_ERROR)
+        await asyncio.sleep(8)
+        await msg.delete()
