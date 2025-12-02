@@ -258,18 +258,18 @@ async def start_command(client: Client, message: Message):
                     if link and isinstance(link, str) and link.startswith(('http://', 'https://', 'tg://')):
                         btn = [
                             [InlineKeyboardButton("Click here", url=link)],
-                        ]
-                            if TUT_VID and isinstance(TUT_VID, str) and TUT_VID.startswith(('http://', 'https://', 'tg://')):
-                                btn.append([InlineKeyboardButton('How to use the bot', url=TUT_VID)])
-                            
-                            # Add the dynamic "Done ✅" button
-                            original_payload = verify_status.get('last_entry_link', '')
-                            if original_payload:
-                                done_link = f"https://t.me/{client.username}?start={original_payload}"
-                                btn.append([InlineKeyboardButton("Done ✅", url=done_link)])
-                            
-                            # Use the extracted file_id_for_image to get custom image
-                        verify_image = await get_verify_image(file_id_for_image)
+	                        ]
+	                        if TUT_VID and isinstance(TUT_VID, str) and TUT_VID.startswith(('http://', 'https://', 'tg://')):
+	                            btn.append([InlineKeyboardButton('How to use the bot', url=TUT_VID)])
+	                        
+	                        # Add the dynamic "Done ✅" button
+	                        original_payload = verify_status.get('last_entry_link', '')
+	                        if original_payload:
+	                            done_link = f"https://t.me/{client.username}?start={original_payload}"
+	                            btn.append([InlineKeyboardButton("Done ✅", url=done_link)])
+	                        
+	                        # Use the extracted file_id_for_image to get custom image
+	                        verify_image = await get_verify_image(file_id_for_image)
                         caption_text = f"Your token is expired or not verified. Complete verification to access files.\n\nToken Timeout: {get_exp_time(VERIFY_EXPIRE_1)}"
                         sent_msg = await send_verification_message(client, message, caption_text, verify_image, InlineKeyboardMarkup(btn))
                         if sent_msg:
@@ -288,16 +288,16 @@ async def start_command(client: Client, message: Message):
                         btn = [
                             [InlineKeyboardButton("Click here", url=link)],
                         ]
-                            if TUT_VID and isinstance(TUT_VID, str) and TUT_VID.startswith(('http://', 'https://', 'tg://')):
-                                btn.append([InlineKeyboardButton('How to use the bot', url=TUT_VID)])
+                        if TUT_VID and isinstance(TUT_VID, str) and TUT_VID.startswith(('http://', 'https://', 'tg://')):
+                            btn.append([InlineKeyboardButton('How to use the bot', url=TUT_VID)])
                             
-                            # Add the dynamic "Done ✅" button
-                            original_payload = verify_status.get('last_entry_link', '')
-                            if original_payload:
-                                done_link = f"https://t.me/{client.username}?start={original_payload}"
-                                btn.append([InlineKeyboardButton("Done ✅", url=done_link)])
+                        # Add the dynamic "Done ✅" button
+                        original_payload = verify_status.get('last_entry_link', '')
+                        if original_payload:
+                            done_link = f"https://t.me/{client.username}?start={original_payload}"
+                            btn.append([InlineKeyboardButton("Done ✅", url=done_link)])
                             
-                            # Use the extracted file_id_for_image to get custom image
+                        # Use the extracted file_id_for_image to get custom image
                         verify_image = await get_verify_image(file_id_for_image)
                         caption_text = f"Complete second verification to continue accessing files.\n\nToken Timeout: {get_exp_time(VERIFY_EXPIRE_2)}"
                         sent_msg = await send_verification_message(client, message, caption_text, verify_image, InlineKeyboardMarkup(btn))
@@ -407,17 +407,17 @@ async def start_command(client: Client, message: Message):
                 if link and isinstance(link, str) and link.startswith(('http://', 'https://', 'tg://')):
                     btn = [
                         [InlineKeyboardButton("Click here", url=link)],
-                    ]
-                    if TUT_VID and isinstance(TUT_VID, str) and TUT_VID.startswith(('http://', 'https://', 'tg://')):
-                        btn.append([InlineKeyboardButton('How to use the bot', url=TUT_VID)])
-                    
-                    # Add the dynamic "Done ✅" button
-                    original_payload = verify_status.get('last_entry_link', '')
-                    if original_payload:
-                        done_link = f"https://t.me/{client.username}?start={original_payload}"
-                        btn.append([InlineKeyboardButton("Done ✅", url=done_link)])
-                    
-                    file_id = verify_status.get('link', '')
+	                    ]
+	                    if TUT_VID and isinstance(TUT_VID, str) and TUT_VID.startswith(('http://', 'https://', 'tg://')):
+	                        btn.append([InlineKeyboardButton('How to use the bot', url=TUT_VID)])
+	                    
+	                    # Add the dynamic "Done ✅" button
+	                    original_payload = verify_status.get('last_entry_link', '')
+	                    if original_payload:
+	                        done_link = f"https://t.me/{client.username}?start={original_payload}"
+	                        btn.append([InlineKeyboardButton("Done ✅", url=done_link)])
+	                    
+	                    file_id = verify_status.get('link', '')
                     verify_image = await get_verify_image(file_id)
                     caption_text = f"Your Ads token is expired, refresh your token and try again.\n\nToken Timeout: {get_exp_time(VERIFY_EXPIRE_1)}\n\nWhat is the token?\n\nThis is an ads token. If you pass 1 ad, you can use the bot for {get_exp_time(VERIFY_EXPIRE_1)} after passing the ad."
                     sent_msg = await send_verification_message(client, message, caption_text, verify_image, InlineKeyboardMarkup(btn))
