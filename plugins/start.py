@@ -270,10 +270,10 @@ async def start_command(client: Client, message: Message):
 	                        
 	                        # Use the extracted file_id_for_image to get custom image
 	                        verify_image = await get_verify_image(file_id_for_image)
-                        caption_text = f"Your token is expired or not verified. Complete verification to access files.\n\nToken Timeout: {get_exp_time(VERIFY_EXPIRE_1)}"
-                        sent_msg = await send_verification_message(client, message, caption_text, verify_image, InlineKeyboardMarkup(btn))
-                        if sent_msg:
-                            await update_verify_status(id, verification_message_id=sent_msg.id)
+	                    caption_text = f"Your token is expired or not verified. Complete verification to access files.\n\nToken Timeout: {get_exp_time(VERIFY_EXPIRE_1)}"
+	                    sent_msg = await send_verification_message(client, message, caption_text, verify_image, InlineKeyboardMarkup(btn))
+	                    if sent_msg:
+	                        await update_verify_status(id, verification_message_id=sent_msg.id)
                     else:
                         await message.reply(f"Your token is expired or not verified. Complete verification to access files.\n\nToken Timeout: {get_exp_time(VERIFY_EXPIRE_1)}\n\nError: Could not generate verification link. Please try again.", quote=True)
                     await update_verify_status(id, verification_message_id=0) # Clear old ID if new message failed
@@ -418,11 +418,11 @@ async def start_command(client: Client, message: Message):
 	                        btn.append([InlineKeyboardButton("Done ✅", url=done_link)])
 	                    
 	                    file_id = verify_status.get('link', '')
-                    verify_image = await get_verify_image(file_id)
-                    caption_text = f"Your Ads token is expired, refresh your token and try again.\n\nToken Timeout: {get_exp_time(VERIFY_EXPIRE_1)}\n\nWhat is the token?\n\nThis is an ads token. If you pass 1 ad, you can use the bot for {get_exp_time(VERIFY_EXPIRE_1)} after passing the ad."
-                    sent_msg = await send_verification_message(client, message, caption_text, verify_image, InlineKeyboardMarkup(btn))
-                    if sent_msg:
-                        await update_verify_status(id, verification_message_id=sent_msg.id)
+	                    verify_image = await get_verify_image(file_id)
+	                    caption_text = f"Your Ads token is expired, refresh your token and try again.\n\nToken Timeout: {get_exp_time(VERIFY_EXPIRE_1)}\n\nWhat is the token?\n\nThis is an ads token. If you pass 1 ad, you can use the bot for {get_exp_time(VERIFY_EXPIRE_1)} after passing the ad."
+	                    sent_msg = await send_verification_message(client, message, caption_text, verify_image, InlineKeyboardMarkup(btn))
+	                    if sent_msg:
+	                        await update_verify_status(id, verification_message_id=sent_msg.id)
                 else:
                     await message.reply(f"Your Ads token is expired, refresh your token and try again.\n\nToken Timeout: {get_exp_time(VERIFY_EXPIRE_1)}\n\nWhat is the token?\n\nThis is an ads token. If you pass 1 ad, you can use the bot for {get_exp_time(VERIFY_EXPIRE_1)} after passing the ad.\n\nError: Could not generate verification link. Please try again.", quote=True)
                 await update_verify_status(id, verification_message_id=0) # Clear old ID if new message failed
