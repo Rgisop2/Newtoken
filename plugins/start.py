@@ -46,28 +46,12 @@ def is_dual_verification_enabled():
     return bool(SHORTLINK_URL_2 and SHORTLINK_API_2)
 
 
-async def send_verification_message(client, message, caption_text, verify_image, reply_markup):
-    """Send verification message with or without image, and handle old message deletion."""
-    user_id = message.from_user.id
-    
-    # 1. Delete old verification message
-    verify_status = await get_verify_status(user_id)
-    old_message_id = verify_status.get('verification_message_id', 0)
-    if old_message_id != 0:
-        try:
-            # client is needed to delete messages, which is why we added it to the function signature
-            await client.delete_messages(chat_id=user_id, message_ids=old_message_id)
-            print(f"[DEBUG] Deleted old verification message {old_message_id} for user {user_id}")
-        except Exception as e:
-            # Ignore errors like message not found or not modified
-            print(f"[DEBUG] Could not delete old verification message {old_message_id} for user {user_id}: {e}")
-            
-    # 2. Send new verification message
-    new_message = None
+async def send_verification_message(message, caption_text, verify_image, reply_markup):
+    """Send verification message with or without image"""
     if verify_image and isinstance(verify_image, str) and verify_image.strip():
         try:
             print(f"[DEBUG] Attempting to send image: {verify_image}")
-            new_message = await message.reply_photo(
+            sent_message = await message.reply_photo(
                 photo=verify_image,
                 caption=caption_text,
                 reply_markup=reply_markup,
@@ -77,24 +61,31 @@ async def send_verification_message(client, message, caption_text, verify_image,
         except Exception as e:
             # If image fails, send text only
             print(f"[DEBUG] Failed to send image: {e}")
-            new_message = await message.reply(caption_text, reply_markup=reply_markup, quote=True)
+            sent_message = await message.reply(caption_text, reply_markup=reply_markup, quote=True)
     else:
         print(f"[DEBUG] No valid image provided, sending text only. Image value: {verify_image}")
-        new_message = await message.reply(caption_text, reply_markup=reply_markup, quote=True)
-    
-    # 3. Return the new message object
-    return new_message
+        sent_message = await message.reply(caption_text, reply_markup=reply_markup, quote=True)
+    return sent_message
+
+async def delete_previous_verification_message(client, user_id, message_id):
+    if message_id:
+        try:
+            await client.delete_messages(chat_id=user_id, message_ids=message_id)
+            print(f"[DEBUG] Deleted previous verification message {message_id} for user {user_id}")
+        except Exception as e:
+            print(f"[DEBUG] Failed to delete previous verification message {message_id} for user {user_id}: {e}")
 
 
 @Bot.on_message(filters.command('start') & filters.private & subscribed)
 async def start_command(client: Client, message: Message):
     id = message.from_user.id
-    owner_id = ADMINS  # Fetch the owner's ID from config
     
-    # Store the original start payload for the "Done" button
-    original_start_payload = message.text.split(" ", 1)[1] if len(message.text.split(" ", 1)) > 1 else ""
-    if original_start_payload and not original_start_payload.startswith("verify_"):
-        await update_verify_status(id, last_entry_link=original_start_payload)
+    # Extract the start payload for the "Done" button
+    start_payload = message.command[1] if len(message.command) > 1 else None
+    done_button_url = f'https://t.me/{client.username}'
+    if start_payload:
+        done_button_url = f'https://t.me/{client.username}?start={start_payload}'
+    owner_id = ADMINS  # Fetch the owner's ID from config
 
     # Check if the user is the owner
     if id == owner_id:
@@ -119,6 +110,10 @@ async def start_command(client: Client, message: Message):
             verify_status['verify2_expiry'] = 0
         if 'gap_expiry' not in verify_status:
             verify_status['gap_expiry'] = 0
+        if 'last_verification_message_id' not in verify_status:
+            verify_status['last_verification_message_id'] = 0
+        if 'last_verification_message_id' not in verify_status:
+            verify_status['last_verification_message_id'] = 0
 
         now = time.time()
         
@@ -258,25 +253,24 @@ async def start_command(client: Client, message: Message):
                     if link and isinstance(link, str) and link.startswith(('http://', 'https://', 'tg://')):
                         btn = [
                             [InlineKeyboardButton("Click here", url=link)],
-	                        ]
-	                        if TUT_VID and isinstance(TUT_VID, str) and TUT_VID.startswith(('http://', 'https://', 'tg://')):
-	                            btn.append([InlineKeyboardButton('How to use the bot', url=TUT_VID)])
-	                        
-	                        # Add the dynamic "Done ✅" button
-	                        original_payload = verify_status.get('last_entry_link', '')
-	                        if original_payload:
-	                            done_link = f"https://t.me/{client.username}?start={original_payload}"
-	                            btn.append([InlineKeyboardButton("Done ✅", url=done_link)])
-	                        
-	                        # Use the extracted file_id_for_image to get custom image
-	                        verify_image = await get_verify_image(file_id_for_image)
-	                    caption_text = f"Your token is expired or not verified. Complete verification to access files.\n\nToken Timeout: {get_exp_time(VERIFY_EXPIRE_1)}"
-	                    sent_msg = await send_verification_message(client, message, caption_text, verify_image, InlineKeyboardMarkup(btn))
-	                    if sent_msg:
-	                        await update_verify_status(id, verification_message_id=sent_msg.id)
+                        ]
+                        if TUT_VID and isinstance(TUT_VID, str) and TUT_VID.startswith(('http://', 'https://', 'tg://')):
+                            btn.append([InlineKeyboardButton('How to use the bot', url=TUT_VID)])
+                        
+                        # Add the "Done ✅" button
+                        btn.append([InlineKeyboardButton("Done ✅", url=done_button_url)])
+                        
+                        # Use the extracted file_id_for_image to get custom image
+                        verify_image = await get_verify_image(file_id_for_image)
+                        caption_text = f"Your token is expired or not verified. Complete verification to access files.\n\nToken Timeout: {get_exp_time(VERIFY_EXPIRE_1)}"
+                        
+                        # Delete previous verification message
+                        await delete_previous_verification_message(client, id, verify_status.get('last_verification_message_id'))
+                        
+                        sent_msg = await send_verification_message(message, caption_text, verify_image, InlineKeyboardMarkup(btn))
+                        await update_verify_status(id, last_verification_message_id=sent_msg.id)
                     else:
                         await message.reply(f"Your token is expired or not verified. Complete verification to access files.\n\nToken Timeout: {get_exp_time(VERIFY_EXPIRE_1)}\n\nError: Could not generate verification link. Please try again.", quote=True)
-                    await update_verify_status(id, verification_message_id=0) # Clear old ID if new message failed
                     return
                 
                 elif access_type == 'require_step2':
@@ -290,22 +284,21 @@ async def start_command(client: Client, message: Message):
                         ]
                         if TUT_VID and isinstance(TUT_VID, str) and TUT_VID.startswith(('http://', 'https://', 'tg://')):
                             btn.append([InlineKeyboardButton('How to use the bot', url=TUT_VID)])
-                            
-                        # Add the dynamic "Done ✅" button
-                        original_payload = verify_status.get('last_entry_link', '')
-                        if original_payload:
-                            done_link = f"https://t.me/{client.username}?start={original_payload}"
-                            btn.append([InlineKeyboardButton("Done ✅", url=done_link)])
-                            
+                        
+                        # Add the "Done ✅" button
+                        btn.append([InlineKeyboardButton("Done ✅", url=done_button_url)])
+                        
                         # Use the extracted file_id_for_image to get custom image
                         verify_image = await get_verify_image(file_id_for_image)
                         caption_text = f"Complete second verification to continue accessing files.\n\nToken Timeout: {get_exp_time(VERIFY_EXPIRE_2)}"
-                        sent_msg = await send_verification_message(client, message, caption_text, verify_image, InlineKeyboardMarkup(btn))
-                        if sent_msg:
-                            await update_verify_status(id, verification_message_id=sent_msg.id)
+                        
+                        # Delete previous verification message
+                        await delete_previous_verification_message(client, id, verify_status.get('last_verification_message_id'))
+                        
+                        sent_msg = await send_verification_message(message, caption_text, verify_image, InlineKeyboardMarkup(btn))
+                        await update_verify_status(id, last_verification_message_id=sent_msg.id)
                     else:
                         await message.reply(f"Complete second verification to continue accessing files.\n\nToken Timeout: {get_exp_time(VERIFY_EXPIRE_2)}\n\nError: Could not generate verification link. Please try again.", quote=True)
-                    await update_verify_status(id, verification_message_id=0) # Clear old ID if new message failed
                     return
 
             # If access is allowed, proceed to decode and send files
@@ -407,25 +400,24 @@ async def start_command(client: Client, message: Message):
                 if link and isinstance(link, str) and link.startswith(('http://', 'https://', 'tg://')):
                     btn = [
                         [InlineKeyboardButton("Click here", url=link)],
-	                    ]
-	                    if TUT_VID and isinstance(TUT_VID, str) and TUT_VID.startswith(('http://', 'https://', 'tg://')):
-	                        btn.append([InlineKeyboardButton('How to use the bot', url=TUT_VID)])
-	                    
-	                    # Add the dynamic "Done ✅" button
-	                    original_payload = verify_status.get('last_entry_link', '')
-	                    if original_payload:
-	                        done_link = f"https://t.me/{client.username}?start={original_payload}"
-	                        btn.append([InlineKeyboardButton("Done ✅", url=done_link)])
-	                    
-	                    file_id = verify_status.get('link', '')
-	                    verify_image = await get_verify_image(file_id)
-	                    caption_text = f"Your Ads token is expired, refresh your token and try again.\n\nToken Timeout: {get_exp_time(VERIFY_EXPIRE_1)}\n\nWhat is the token?\n\nThis is an ads token. If you pass 1 ad, you can use the bot for {get_exp_time(VERIFY_EXPIRE_1)} after passing the ad."
-	                    sent_msg = await send_verification_message(client, message, caption_text, verify_image, InlineKeyboardMarkup(btn))
-	                    if sent_msg:
-	                        await update_verify_status(id, verification_message_id=sent_msg.id)
+                    ]
+                    if TUT_VID and isinstance(TUT_VID, str) and TUT_VID.startswith(('http://', 'https://', 'tg://')):
+                        btn.append([InlineKeyboardButton('How to use the bot', url=TUT_VID)])
+                    
+                    # Add the "Done ✅" button
+                    btn.append([InlineKeyboardButton("Done ✅", url=done_button_url)])
+                    
+                    file_id = verify_status.get('link', '')
+                    verify_image = await get_verify_image(file_id)
+                    caption_text = f"Your Ads token is expired, refresh your token and try again.\n\nToken Timeout: {get_exp_time(VERIFY_EXPIRE_1)}\n\nWhat is the token?\n\nThis is an ads token. If you pass 1 ad, you can use the bot for {get_exp_time(VERIFY_EXPIRE_1)} after passing the ad."
+                    
+                    # Delete previous verification message
+                    await delete_previous_verification_message(client, id, verify_status.get('last_verification_message_id'))
+                    
+                    sent_msg = await send_verification_message(message, caption_text, verify_image, InlineKeyboardMarkup(btn))
+                    await update_verify_status(id, last_verification_message_id=sent_msg.id)
                 else:
                     await message.reply(f"Your Ads token is expired, refresh your token and try again.\n\nToken Timeout: {get_exp_time(VERIFY_EXPIRE_1)}\n\nWhat is the token?\n\nThis is an ads token. If you pass 1 ad, you can use the bot for {get_exp_time(VERIFY_EXPIRE_1)} after passing the ad.\n\nError: Could not generate verification link. Please try again.", quote=True)
-                await update_verify_status(id, verification_message_id=0) # Clear old ID if new message failed
 
 
 WAIT_MSG = "<b>ᴡᴏʀᴋɪɴɢ....</b>"
