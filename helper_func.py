@@ -102,7 +102,8 @@ async def get_verify_status(user_id):
     return verify
 
 async def update_verify_status(user_id, verify_token="", is_verified=False, verified_time=0, link="", 
-                              current_step=None, verify1_expiry=None, verify2_expiry=None, gap_expiry=None):
+                              current_step=None, verify1_expiry=None, verify2_expiry=None, gap_expiry=None,
+                              verification_message_id=None):
     current = await db_verify_status(user_id)
     current['verify_token'] = verify_token
     current['is_verified'] = is_verified
@@ -118,6 +119,9 @@ async def update_verify_status(user_id, verify_token="", is_verified=False, veri
         current['verify2_expiry'] = verify2_expiry
     if gap_expiry is not None:
         current['gap_expiry'] = gap_expiry
+    
+    if verification_message_id is not None:
+        current['verification_message_id'] = verification_message_id
     
     await db_update_verify_status(user_id, current)
 
