@@ -120,7 +120,12 @@ async def start_command(client: Client, message: Message):
         if "verify_" in message.text and not message.text.startswith('/start get-'):
             _, token = message.text.split("_", 1)
             
-            if verify_status['verify_token'] != token:
+            # Re-fetch verify_status to ensure we have the latest token set by the bot
+            # This is crucial because the token is set in a previous execution of the handler
+            # and the in-memory verify_status might be stale if the user is fast.
+            verify_status = await get_verify_status(id)
+            
+            if verify_status.get('verify_token') != token:
                 return await message.reply("Your token is invalid or Expired. Try again by clicking /start")
             
             step = verify_status['current_step']
