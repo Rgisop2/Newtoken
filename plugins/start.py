@@ -117,8 +117,9 @@ async def start_command(client: Client, message: Message):
 
         now = time.time()
         
-        if "verify_" in message.text:
+        if "verify_" in message.text and not message.text.startswith('/start get-'):
             _, token = message.text.split("_", 1)
+            
             if verify_status['verify_token'] != token:
                 return await message.reply("Your token is invalid or Expired. Try again by clicking /start")
             
@@ -393,8 +394,16 @@ async def start_command(client: Client, message: Message):
         else:
             verify_status = await get_verify_status(id)
             if IS_VERIFY and not verify_status['is_verified']:
-                token = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
-                await update_verify_status(id, verify_token=token, link="")
+                # Only generate a new token if one doesn't exist to prevent token mismatch
+                token = verify_status.get('verify_token')
+                if not token:
+                    token = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
+                    await update_verify_status(id, verify_token=token, link="")
+                else:
+                    # If a token exists, we need to fetch it again after the update_verify_status call
+                    # which is only called if a new token is generated. So we use the token we just got.
+                    pass
+                    
                 link = await get_shortlink(SHORTLINK_URL_1, SHORTLINK_API_1, f'https://telegram.dog/{client.username}?start=verify_{token}')
                 
                 if link and isinstance(link, str) and link.startswith(('http://', 'https://', 'tg://')):
