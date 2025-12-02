@@ -102,8 +102,7 @@ async def get_verify_status(user_id):
     return verify
 
 async def update_verify_status(user_id, verify_token="", is_verified=False, verified_time=0, link="", 
-                              current_step=None, verify1_expiry=None, verify2_expiry=None, gap_expiry=None,
-                              last_verification_message_id=None, token_created_at=None):
+                              current_step=None, verify1_expiry=None, verify2_expiry=None, gap_expiry=None):
     current = await db_verify_status(user_id)
     current['verify_token'] = verify_token
     current['is_verified'] = is_verified
@@ -119,10 +118,6 @@ async def update_verify_status(user_id, verify_token="", is_verified=False, veri
         current['verify2_expiry'] = verify2_expiry
     if gap_expiry is not None:
         current['gap_expiry'] = gap_expiry
-    if last_verification_message_id is not None:
-        current['last_verification_message_id'] = last_verification_message_id
-    if token_created_at is not None:
-        current['token_created_at'] = token_created_at
     
     await db_update_verify_status(user_id, current)
 
@@ -197,4 +192,3 @@ def get_readable_time(seconds: int) -> str:
     return up_time
 
 subscribed = filters.create(is_subscribed)
-                                                  
