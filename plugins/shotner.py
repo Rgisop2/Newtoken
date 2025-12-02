@@ -9,7 +9,7 @@ import os
 
 
 # Shotner Settings Command - Main Entry Point
-@Bot.on_message(filters.private & filters.command('shotner') & filters.user(ADMINS))
+@Bot.on_message(filters.private & filters.user(ADMINS) & filters.command('shotner'))
 async def shotner_settings(client: Bot, message: Message):
     """Display settings menu for owner/admins"""
     
@@ -38,7 +38,7 @@ Choose an option to modify:
 
 
 # Handle Verify Expire Selection
-@Bot.on_callback_query(filters.regex("^settings_verify_expire$"))
+@Bot.on_callback_query(filters.user(ADMINS) & filters.regex("^settings_verify_expire$"))
 async def verify_expire_menu(client: Bot, query: CallbackQuery):
     """Show verify expire options"""
     
@@ -69,7 +69,7 @@ Send a number (in seconds) to update the selected option.
 
 
 # Handle Verify Gap Time Selection
-@Bot.on_callback_query(filters.regex("^settings_verify_gap_time$"))
+@Bot.on_callback_query(filters.user(ADMINS) & filters.regex("^settings_verify_gap_time$"))
 async def verify_gap_time_menu(client: Bot, query: CallbackQuery):
     """Show verify gap time option"""
     
@@ -96,7 +96,7 @@ Send a number (in seconds) to update this value.
 
 
 # Handle Verify Image Selection
-@Bot.on_callback_query(filters.regex("^settings_verify_image$"))
+@Bot.on_callback_query(filters.user(ADMINS) & filters.regex("^settings_verify_image$"))
 async def verify_image_menu(client: Bot, query: CallbackQuery):
     """Show verify image option"""
     
@@ -124,7 +124,7 @@ Example: https://example.com/image.jpg
 
 
 # Back to Settings Button
-@Bot.on_callback_query(filters.regex("^back_to_settings$"))
+@Bot.on_callback_query(filters.user(ADMINS) & filters.regex("^back_to_settings$"))
 async def back_to_settings(client: Bot, query: CallbackQuery):
     """Go back to main settings menu"""
     
@@ -158,7 +158,7 @@ editing_context = {}
 
 
 # Handle Verify Expire Selection
-@Bot.on_callback_query(filters.regex("^set_verify_expire_"))
+@Bot.on_callback_query(filters.user(ADMINS) & filters.regex("^set_verify_expire_"))
 async def select_verify_expire(client: Bot, query: CallbackQuery):
     """User selected which expire time to edit"""
     
@@ -189,7 +189,7 @@ Example: 300 (for 5 minutes)
 
 
 # Handle Verify Gap Time Selection
-@Bot.on_callback_query(filters.regex("^set_verify_gap_time$"))
+@Bot.on_callback_query(filters.user(ADMINS) & filters.regex("^set_verify_gap_time$"))
 async def select_verify_gap_time(client: Bot, query: CallbackQuery):
     """User selected gap time to edit"""
     
@@ -214,7 +214,7 @@ Example: 60 (for 1 minute)
 
 
 # Handle Verify Image Selection
-@Bot.on_callback_query(filters.regex("^set_verify_image$"))
+@Bot.on_callback_query(filters.user(ADMINS) & filters.regex("^set_verify_image$"))
 async def select_verify_image(client: Bot, query: CallbackQuery):
     """User selected image to edit"""
     
@@ -239,7 +239,7 @@ Example: https://i.ibb.co/HTMRv8Wh/image.jpg
 
 
 # Cancel Edit
-@Bot.on_callback_query(filters.regex("^cancel_edit$"))
+@Bot.on_callback_query(filters.user(ADMINS) & filters.regex("^cancel_edit$"))
 async def cancel_edit(client: Bot, query: CallbackQuery):
     """Cancel current edit"""
     
@@ -251,7 +251,7 @@ async def cancel_edit(client: Bot, query: CallbackQuery):
     await query.answer("Cancelled!", show_alert=False)
 
 
-@Bot.on_message(filters.private & filters.text & filters.user(ADMINS))
+@Bot.on_message(filters.private & filters.user(ADMINS) & filters.text)
 async def handle_setting_input(client: Bot, message: Message):
     """Handle text input for settings updates"""
     
