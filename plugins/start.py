@@ -112,8 +112,8 @@ async def start_command(client: Client, message: Message):
             verify_status['gap_expiry'] = 0
         if 'last_verification_message_id' not in verify_status:
             verify_status['last_verification_message_id'] = 0
-        if 'last_verification_message_id' not in verify_status:
-            verify_status['last_verification_message_id'] = 0
+        if 'token_created_at' not in verify_status:
+            verify_status['token_created_at'] = 0
 
         now = time.time()
         
@@ -137,11 +137,12 @@ async def start_command(client: Client, message: Message):
                 verify_status['verify1_expiry'] = now + VERIFY_EXPIRE_1
                 verify_status['gap_expiry'] = now + VERIFY_GAP_TIME
                 verify_status['verify_token'] = ""
+                verify_status['token_created_at'] = 0 # Expire token immediately
                 verify_status['verified_time'] = now
                 await update_verify_status(id, is_verified=True, current_step=1, 
                                          verify1_expiry=verify_status['verify1_expiry'],
                                          gap_expiry=verify_status['gap_expiry'],
-                                         verify_token="", verified_time=now)
+                                         verify_token="", token_created_at=0, verified_time=now)
                 await message.reply(f"✅ First verification complete! You now have temporary access.\n\nAccess valid for: {get_exp_time(VERIFY_EXPIRE_1)}", quote=True)
                 return
             
@@ -151,10 +152,11 @@ async def start_command(client: Client, message: Message):
                 verify_status['is_verified'] = True
                 verify_status['verify2_expiry'] = now + VERIFY_EXPIRE_2
                 verify_status['verify_token'] = ""
+                verify_status['token_created_at'] = 0 # Expire token immediately
                 verify_status['verified_time'] = now
                 await update_verify_status(id, is_verified=True, current_step=2,
                                          verify2_expiry=verify_status['verify2_expiry'],
-                                         verify_token="", verified_time=now)
+                                         verify_token="", token_created_at=0, verified_time=now)
                 await message.reply(f"✅ Second verification complete! Full access unlocked.\n\nAccess valid for: {get_exp_time(VERIFY_EXPIRE_2)}", quote=True)
                 return
 
@@ -399,16 +401,21 @@ async def start_command(client: Client, message: Message):
         else:
             verify_status = await get_verify_status(id)
             if IS_VERIFY and not verify_status['is_verified']:
-                # Only generate a new token if one doesn't exist to prevent token mismatch
+                # Check for 1-hour token expiration
                 token = verify_status.get('verify_token')
+                token_created_at = verify_status.get('token_created_at', 0)
+                
+                # Token is considered expired if it's older than 1 hour (3600 seconds)
+                if token and (now - token_created_at) > 3600:
+                    # Expire the token and force new generation
+                    token = None
+                    await update_verify_status(id, verify_token="", token_created_at=0)
+                
+                # Generate a new token if one doesn't exist or has expired
                 if not token:
                     token = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
-                    await update_verify_status(id, verify_token=token, link="")
-                else:
-                    # If a token exists, we need to fetch it again after the update_verify_status call
-                    # which is only called if a new token is generated. So we use the token we just got.
-                    pass
-                    
+                    await update_verify_status(id, verify_token=token, link="", token_created_at=now)
+                
                 link = await get_shortlink(SHORTLINK_URL_1, SHORTLINK_API_1, f'https://telegram.dog/{client.username}?start=verify_{token}')
                 
                 if link and isinstance(link, str) and link.startswith(('http://', 'https://', 'tg://')):
