@@ -49,12 +49,12 @@ SHORTLINK_URL_2 = os.environ.get("SHORTLINK_URL_2", "arolinks.com")
 SHORTLINK_API_2 = os.environ.get("SHORTLINK_API_2", "2b3dd0b54ab06c6c8e6cf617f20d5fff15ee1b71")
 
 # Verification expiry times (in seconds)
-VERIFY_EXPIRE = int(os.environ.get('VERIFY_EXPIRE', 300))  # 24 hours by default
-VERIFY_EXPIRE_1 = int(os.environ.get('VERIFY_EXPIRE_1', 300))
-VERIFY_EXPIRE_2 = int(os.environ.get('VERIFY_EXPIRE_2', 300))
+VERIFY_EXPIRE = int(os.environ.get('VERIFY_EXPIRE', 86400))  # 24 hours by default
+VERIFY_EXPIRE_1 = int(os.environ.get('VERIFY_EXPIRE_1', 86400))
+VERIFY_EXPIRE_2 = int(os.environ.get('VERIFY_EXPIRE_2', 86400))
 
 # Gap time between first and second verification (in seconds, default 30 mins)
-VERIFY_GAP_TIME = int(os.environ.get('VERIFY_GAP_TIME', 60))
+VERIFY_GAP_TIME = int(os.environ.get('VERIFY_GAP_TIME', 1800))
 
 VERIFY_IMAGE = os.environ.get("VERIFY_IMAGE", "https://i.ibb.co/HTMRv8Wh/7700112188-f234d295.jpg")
 
