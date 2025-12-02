@@ -162,7 +162,15 @@ async def start_command(client: Client, message: Message):
                                          verify1_expiry=verify_status['verify1_expiry'],
                                          gap_expiry=verify_status['gap_expiry'],
                                          verify_token="", verified_time=now)
-                await message.reply(f"✅ First verification complete! You now have temporary access.\n\nAccess valid for: {get_exp_time(VERIFY_EXPIRE_1)}", quote=True)
+                
+                last_entry_link = verify_status.get('last_entry_link', '')
+                reply_text = f"✅ First verification complete! You now have temporary access.\n\nAccess valid for: {get_exp_time(VERIFY_EXPIRE_1)}"
+                
+                if last_entry_link:
+                    btn = [[InlineKeyboardButton("Get File 🗃️", url=f"https://telegram.me/{client.username}?start={last_entry_link}")]]
+                    await message.reply(reply_text, quote=True, reply_markup=InlineKeyboardMarkup(btn))
+                else:
+                    await message.reply(reply_text, quote=True)
                 return
             
             # STEP 2 verification
@@ -175,7 +183,15 @@ async def start_command(client: Client, message: Message):
                 await update_verify_status(id, is_verified=True, current_step=2,
                                          verify2_expiry=verify_status['verify2_expiry'],
                                          verify_token="", verified_time=now)
-                await message.reply(f"✅ Second verification complete! Full access unlocked.\n\nAccess valid for: {get_exp_time(VERIFY_EXPIRE_2)}", quote=True)
+                
+                last_entry_link = verify_status.get('last_entry_link', '')
+                reply_text = f"✅ Second verification complete! Full access unlocked.\n\nAccess valid for: {get_exp_time(VERIFY_EXPIRE_2)}"
+                
+                if last_entry_link:
+                    btn = [[InlineKeyboardButton("Get File 🗃️", url=f"https://telegram.me/{client.username}?start={last_entry_link}")]]
+                    await message.reply(reply_text, quote=True, reply_markup=InlineKeyboardMarkup(btn))
+                else:
+                    await message.reply(reply_text, quote=True)
                 return
 
         verify_status = await get_verify_status(id)
