@@ -95,14 +95,23 @@ async def start_command(client: Client, message: Message):
         await message.reply("You are the owner! Additional actions can be added here.")
 
     else:
-        verify_status = await get_verify_status(id)
-        prev_msg_id = verify_status.get('verification_message_id', 0)
-        if prev_msg_id > 0:
-            try:
-                await client.delete_messages(chat_id=id, message_ids=prev_msg_id)
-                print(f"[DEBUG] Deleted previous verification message {prev_msg_id} for user {id}")
-            except Exception as e:
-                print(f"[DEBUG] Could not delete previous verification message: {e}")
+        # Check the start payload first
+        is_verification_link = False
+        if len(message.command) > 1:
+            start_payload = message.command[1]
+            if start_payload.startswith("verify_"):
+                is_verification_link = True
+        
+        # Delete previous verification message only for non-verification links
+        if not is_verification_link:
+            verify_status = await get_verify_status(id)
+            prev_msg_id = verify_status.get('verification_message_id', 0)
+            if prev_msg_id > 0:
+                try:
+                    await client.delete_messages(chat_id=id, message_ids=prev_msg_id)
+                    print(f"[DEBUG] Deleted previous verification message {prev_msg_id} for user {id}")
+                except Exception as e:
+                    print(f"[DEBUG] Could not delete previous verification message: {e}")
 
         if not await present_user(id):
             try:
