@@ -291,13 +291,27 @@ async def start_command(client: Client, message: Message):
                         
                         verify_image = await get_verify_image(file_id_for_image)
                         caption_text = (
-    "<blockquote>Your token is expired or not verified. Complete verification to access files.</blockquote>\n\n"
-    f"Token Timeout: {get_exp_time(VERIFY_EXPIRE_1)}"
-)
-                        await send_verification_message(message, caption_text, verify_image, InlineKeyboardMarkup(btn), client, id)
-                    else:
-                        await message.reply(f"Your token is expired or not verified. Complete verification to access files.\n\nToken Timeout: {get_exp_time(VERIFY_EXPIRE_1)}\n\nError: Could not generate verification link. Please try again.", quote=True)
-                    return
+        "<blockquote>Your token is expired or not verified. Complete verification to access files.</blockquote>\n\n"
+        f"Token Timeout: {get_exp_time(VERIFY_EXPIRE_1)}"
+    )
+
+    await send_verification_message(
+        message,
+        caption_text,
+        verify_image,
+        InlineKeyboardMarkup(btn),
+        client,
+        id
+    )
+
+else:
+    await message.reply(
+        "<blockquote>Your token is expired or not verified. Complete verification to access files.</blockquote>\n\n"
+        f"Token Timeout: {get_exp_time(VERIFY_EXPIRE_1)}\n\n"
+        "Error: Could not generate verification link. Please try again.",
+        parse_mode="HTML",
+        quote=True
+    )return
                 
                 elif access_type == 'require_step2':
                     token = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
