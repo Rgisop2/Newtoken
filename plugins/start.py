@@ -290,7 +290,8 @@ async def start_command(client: Client, message: Message):
                             btn.append([InlineKeyboardButton('How to use the bot', url=TUT_VID)])
                         
                         verify_image = await get_verify_image(file_id_for_image)
-                        caption_text = f"Your token is expired or not verified. Complete verification to access files.\n\nToken Timeout: {get_exp_time(VERIFY_EXPIRE_1)}"
+                        caption_text = (
+                            "<blockquote>Your token is expired or not verified. Complete verification to access files.</blockquote>\n\nToken Timeout: {get_exp_time(VERIFY_EXPIRE_1)}"
                         await send_verification_message(message, caption_text, verify_image, InlineKeyboardMarkup(btn), client, id)
                     else:
                         await message.reply(f"Your token is expired or not verified. Complete verification to access files.\n\nToken Timeout: {get_exp_time(VERIFY_EXPIRE_1)}\n\nError: Could not generate verification link. Please try again.", quote=True)
