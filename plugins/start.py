@@ -290,28 +290,30 @@ async def start_command(client: Client, message: Message):
                             btn.append([InlineKeyboardButton('How to use the bot', url=TUT_VID)])
                         
                         verify_image = await get_verify_image(file_id_for_image)
-                        caption_text = (
-        "<blockquote>Your token is expired or not verified. Complete verification to access files.</blockquote>\n\n"
-        f"Token Timeout: {get_exp_time(VERIFY_EXPIRE_1)}"
-    )
+                        if is_expired_or_not_verified:
+        caption_text = (
+            "<blockquote>Your token is expired or not verified. Complete verification to access files.</blockquote>\n\n"
+            f"Token Timeout: {get_exp_time(VERIFY_EXPIRE_1)}"
+        )
 
-    await send_verification_message(
-        message,
-        caption_text,
-        verify_image,
-        InlineKeyboardMarkup(btn),
-        client,
-        id
-    )
+        await send_verification_message(
+            message,
+            caption_text,
+            verify_image,
+            InlineKeyboardMarkup(btn),
+            client,
+            id
+        )
 
-else:
-    await message.reply(
-        "<blockquote>Your token is expired or not verified. Complete verification to access files.</blockquote>\n\n"
-        f"Token Timeout: {get_exp_time(VERIFY_EXPIRE_1)}\n\n"
-        "Error: Could not generate verification link. Please try again.",
-        parse_mode="HTML",
-        quote=True
-    )return
+    else:
+        await message.reply(
+            "<blockquote>Your token is expired or not verified. Complete verification to access files.</blockquote>\n\n"
+            f"Token Timeout: {get_exp_time(VERIFY_EXPIRE_1)}\n\n"
+            "Error: Could not generate verification link. Please try again.",
+            parse_mode="HTML",
+            quote=True
+        )
+        return
                 
                 elif access_type == 'require_step2':
                     token = ''.join(random.choices(string.ascii_letters + string.digits, k=10))
