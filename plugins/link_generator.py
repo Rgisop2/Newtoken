@@ -2,7 +2,7 @@
 
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-from pyrogram.errors import ListenerTimeout
+from pyromod.exceptions import ListenerTimeout
 from bot import Bot
 from config import ADMINS
 from helper_func import encode, get_message_id
